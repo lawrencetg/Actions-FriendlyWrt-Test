@@ -56,7 +56,7 @@ jobs:
         TARGET_EFLASHER_RAW_FILENAME=R4S-Series-FriendlyWrt-22.03-Docker_eflasher.img
         EOL
         DEBUG_DOT_CONFIG=1 ./build.sh friendlywrt
-        TARGET_DEVICE_ARCH="$(grep "^CONFIG_TARGET_.*_.*=y$" ".config" | head -n 1 | sed 's/^CONFIG_TARGET_//g' | awk -F '_' '{print $1}')"
+        TARGET_DEVICE_ARCH="$(grep "^CONFIG_TARGET_.*_.*=y$" "friendlywrt/.config" | head -n 1 | sed 's/^CONFIG_TARGET_//g' | awk -F '_' '{print $1}')"
         echo "TARGET_DEVICE_ARCH=${TARGET_DEVICE_ARCH}-rk3399" >>$GITHUB_ENV
 
     - name: Enable Cache
