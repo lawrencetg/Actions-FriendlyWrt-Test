@@ -1,4 +1,4 @@
-name: R4S-Series-FriendlyWrt-21.02-Docker
+name: R4S-Series-FriendlyWrt-22.03-Docker
 on:
   push:
     branches: [ master ]
@@ -33,7 +33,7 @@ jobs:
       run: |
         mkdir project
         cd project
-        repo init --depth=1 -u https://github.com/friendlyarm/friendlywrt_manifests -b master-v21.02 \
+        repo init --depth=1 -u https://github.com/friendlyarm/friendlywrt_manifests -b master-v22.03 \
                 -m rk3399.xml --repo-url=https://github.com/friendlyarm/repo  --no-clone-bundle
         repo sync -c  --no-clone-bundle
 
@@ -48,10 +48,10 @@ jobs:
         cd project
         cat > .current_config.mk <<EOL
         . device/friendlyelec/rk3399/base.mk
-        TARGET_IMAGE_DIRNAME=friendlywrt21-docker
+        TARGET_IMAGE_DIRNAME=friendlywrt22-docker
         TARGET_FRIENDLYWRT_CONFIG=rockchip-docker
-        TARGET_SD_RAW_FILENAME=R4S-Series-FriendlyWrt-21.02-Docker.img
-        TARGET_EFLASHER_RAW_FILENAME=R4S-Series-FriendlyWrt-21.02-Docker_eflasher.img
+        TARGET_SD_RAW_FILENAME=R4S-Series-FriendlyWrt-22.03-Docker.img
+        TARGET_EFLASHER_RAW_FILENAME=R4S-Series-FriendlyWrt-22.03-Docker_eflasher.img
         EOL
         DEBUG_DOT_CONFIG=1 ./build.sh friendlywrt
 
@@ -87,7 +87,7 @@ jobs:
       run: |
         cd project
         ./build.sh sd-img
-        mv out/R4S-Series-FriendlyWrt-21.02-Docker.img ../artifact/
+        mv out/R4S-Series-FriendlyWrt-22.03-Docker.img ../artifact/
         cd ../artifact/
         gzip *.img
         release_tag="FriendlyWrt-$(date +%Y-%m-%d)"
@@ -109,8 +109,8 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./artifact/R4S-Series-FriendlyWrt-21.02-Docker.img.gz
-        asset_name: R4S-Series-FriendlyWrt-21.02-Docker.img.gz
+        asset_path: ./artifact/R4S-Series-FriendlyWrt-22.03-Docker.img.gz
+        asset_name: R4S-Series-FriendlyWrt-22.03-Docker.img.gz
         asset_content_type: application/gzip
 
 

@@ -3,8 +3,8 @@ on:
   push:
     branches: [ master ]
 jobs:
-  build:
-    name: Build
+  download:
+    name: download
     runs-on: ubuntu-20.04
     steps:
     - name: Checkout
@@ -36,81 +36,19 @@ jobs:
         repo init --depth=1 -u https://github.com/friendlyarm/friendlywrt_manifests -b master-v22.03 \
                 -m rk3399.xml --repo-url=https://github.com/friendlyarm/repo  --no-clone-bundle
         repo sync -c  --no-clone-bundle
-
-    - name: Apply Customizations
-      run: |
-        cd project
-        source ../scripts/add_packages.sh
-        source ../scripts/custome_config.sh
-
-    - name: Prepare Config and Feeds
-      run: |
-        cd project
-        cat > .current_config.mk <<EOL
-        . device/friendlyelec/rk3399/base.mk
-        TARGET_IMAGE_DIRNAME=friendlywrt22-docker
-        TARGET_FRIENDLYWRT_CONFIG=rockchip-docker
-        TARGET_SD_RAW_FILENAME=R4S-Series-FriendlyWrt-22.03-Docker.img
-        TARGET_EFLASHER_RAW_FILENAME=R4S-Series-FriendlyWrt-22.03-Docker_eflasher.img
-        EOL
-        DEBUG_DOT_CONFIG=1 ./build.sh friendlywrt
-
-    - name: Download Package
-      run: |
-        cd project/friendlywrt
-        make download -j8
-        find dl -size -1024c -exec ls -l {} \;
-        find dl -size -1024c -exec rm -f {} \;
-
-    - name: Compile FriendlyWrt
-      id: compile
-      continue-on-error: true
-      run: |
-        cd project/friendlywrt
-        make -j$(nproc) || make -j1 || make -j1 V=s
-        echo $?
-
-    - name: Check The Result And Try Again
-      if: steps.compile.outcome == 'failure'
-      run: |
-        cd project/friendlywrt
-        make -j1 V=s
-
-    - name: Compile Uboot and Kernel
-      run: |
-        cd project
-        ./build.sh kernel
-        ./build.sh uboot
-
-    - name: Build SD Image
-      id: build_sd_image
-      run: |
-        cd project
-        ./build.sh sd-img
-        mv out/R4S-Series-FriendlyWrt-22.03-Docker.img ../artifact/
-        cd ../artifact/
-        gzip *.img
-        release_tag="FriendlyWrt-$(date +%Y-%m-%d)"
-        echo "##[set-output name=release_tag;]$release_tag"
-
-    - name: Create Release
-      id: create_release
-      uses: softprops/action-gh-release@v1
+  build:
+    name: Build
+    runs-on: ubuntu-20.04
+    steps:
+    - name: test
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ steps.build_sd_image.outputs.release_tag }}
-        draft: false
-        prerelease: false
+        DEBIAN_FRONTEND: noninteractive
+      run: |
+        tree
+        which repo
 
-    - name: Upload Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./artifact/R4S-Series-FriendlyWrt-22.03-Docker.img.gz
-        asset_name: R4S-Series-FriendlyWrt-22.03-Docker.img.gz
-        asset_content_type: application/gzip
+
+
+
 
 
