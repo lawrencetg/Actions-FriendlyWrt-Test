@@ -148,7 +148,7 @@ jobs:
         asset_content_type: application/gzip
 
   build_img:
-    needs: [prepare_release,prepare_friendlywrt_rootfs]
+    needs: [prepare_release,build_friendlywrt]
     runs-on: ubuntu-20.04
     if: github.event.repository.owner.id == github.event.sender.id
 
