@@ -6,6 +6,7 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-20.04
+    needs: prepare_friendlywrt22_docker_rootfs
     if: github.event.repository.owner.id == github.event.sender.id
 
     steps:
@@ -37,71 +38,49 @@ jobs:
         cd project
         repo init --depth=1 -u https://github.com/friendlyarm/friendlywrt_manifests -b master-v22.03 \
                 -m rk3399.xml --repo-url=https://github.com/friendlyarm/repo  --no-clone-bundle
-        repo sync -c  --no-clone-bundle
 
-    - name: Apply Customizations
+        repo sync -c kernel --no-clone-bundle
+        repo sync -c u-boot --no-clone-bundle
+        repo sync -c configs --no-clone-bundle
+        repo sync -c device/common --no-clone-bundle
+        repo sync -c device/friendlyelec --no-clone-bundle
+        repo sync -c scripts --no-clone-bundle
+        repo sync -c scripts/sd-fuse  --no-clone-bundle
+        repo sync -c toolchain  --no-clone-bundle
+
+    - name: Get Release Tag
+      id: release_tag
+      run: |
+        release_tag="FriendlyWrt-$(date +%Y-%m-%d)"
+        echo "##[set-output name=release_tag;]$release_tag"
+
+    - name: Download FriendlyWrt Rootfs
+      - uses: robinraju/release-downloader@v1.5
+        with:
+          repository: "lawrencetg/Actions-FriendlyWrt-Test"
+          tag: ${{ steps.release_tag.outputs.release_tag }}
+          fileName: "rootfs-friendlywrt-22.04-docker.tgz"
+
+    - name: Unpack FriendlyWrt Rootfs
       run: |
         cd project
-        source ../scripts/add_packages.sh
-        source ../scripts/custome_config.sh
-
-    - name: Prepare Config and Feeds
-      run: |
-        cd project
-        cat > .current_config.mk <<EOL
-        . device/friendlyelec/rk3399/base.mk
-        TARGET_IMAGE_DIRNAME=friendlywrt22-docker
-        TARGET_FRIENDLYWRT_CONFIG=rockchip-docker
-        TARGET_SD_RAW_FILENAME=R4S-Series-FriendlyWrt-22.03-Docker.img
-        TARGET_EFLASHER_RAW_FILENAME=R4S-Series-FriendlyWrt-22.03-Docker_eflasher.img
-        EOL
-        DEBUG_DOT_CONFIG=1 ./build.sh friendlywrt
-        TARGET_DEVICE_ARCH="$(grep "^CONFIG_TARGET_.*_.*=y$" "friendlywrt/.config" | head -n 1 | sed 's/^CONFIG_TARGET_//g' | awk -F '_' '{print $1}')"
-        echo "TARGET_DEVICE_ARCH=${TARGET_DEVICE_ARCH}-rk3399" >>$GITHUB_ENV
-
-    - name: Enable Cache
-      uses: HiGarfield/cachewrtbuild@main
-      with:
-        mixkey: ${{ env.TARGET_DEVICE_ARCH }}
-        prefix: ${{ github.workspace }}/project/friendlywrt
-
-    - name: Download Package
-      run: |
-        cd project/friendlywrt
-        make download -j8
-        find dl -size -1024c -exec ls -l {} \;
-        find dl -size -1024c -exec rm -f {} \;
-
-    - name: Compile FriendlyWrt
-      id: compile
-      continue-on-error: true
-      run: |
-        cd project/friendlywrt
-        make -j$(nproc) || make -j1 || make -j1 V=s
-        echo $?
-
-    - name: Check The Result And Try Again
-      if: steps.compile.outcome == 'failure'
-      run: |
-        cd project/friendlywrt
-        make -j1 V=s
+        tar xvzf ../rootfs-friendlywrt-22.04-docker.tgz && rm -f ../rootfs-friendlywrt-22.04-docker.tgz
 
     - name: Compile Uboot and Kernel
       run: |
         cd project
-        ./build.sh kernel
-        ./build.sh uboot
+        # ./build.sh kernel
+        # ./build.sh uboot
 
     - name: Build SD Image
       id: build_sd_image
       run: |
         cd project
-        ./build.sh sd-img
-        mv out/R4S-Series-FriendlyWrt-22.03-Docker.img ../artifact/
+        # ./build.sh sd-img
+        # mv out/R4S-Series-FriendlyWrt-22.03-Docker.img ../artifact/
+        dd if=/dev/zero of=../artifact/R4S-Series-FriendlyWrt-22.03-Docker.img bs=1M count=1
         cd ../artifact/
         gzip *.img
-        release_tag="FriendlyWrt-$(date +%Y-%m-%d)"
-        echo "##[set-output name=release_tag;]$release_tag"
 
     - name: Create Release
       id: create_release
@@ -109,7 +88,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: ${{ steps.build_sd_image.outputs.release_tag }}
+        tag_name: ${{ steps.release_tag.outputs.release_tag }}
         draft: false
         prerelease: false
 

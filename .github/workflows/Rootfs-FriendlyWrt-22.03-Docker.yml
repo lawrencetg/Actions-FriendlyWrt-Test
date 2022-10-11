@@ -3,7 +3,7 @@ on:
   watch:
     types: started
 jobs:
-  prepare_wrt22docker_rootfs:
+  prepare_friendlywrt22_docker_rootfs:
     name: Prepare FriendyWrt-22.03-Docker Rootfs
     runs-on: ubuntu-20.04
     if: github.event.repository.owner.id == github.event.sender.id
@@ -97,10 +97,14 @@ jobs:
         mkdir -p ${FRIENDLYWRT_SRC}/${FRIENDLYWRT_ROOTFS}  #todo
         rootfs_filename="rootfs-friendlywrt-22.04-docker.tgz"
         tar cvzf ../artifact/${rootfs_filename} ${FRIENDLYWRT_SRC}/${FRIENDLYWRT_ROOTFS}
-        release_tag="FriendlyWrt-$(date +%Y-%m-%d)"
-        echo "##[set-output name=release_tag;]$release_tag"
         echo "##[set-output name=rootfs_filename;]$rootfs_filename"
         tree ../artifact/
+
+    - name: Get Release Tag
+      id: release_tag
+      run: |
+        release_tag="FriendlyWrt-$(date +%Y-%m-%d)"
+        echo "##[set-output name=release_tag;]$release_tag"
 
     - name: Create Release
       id: create_release
@@ -108,7 +112,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: ${{ steps.create_rootfs_package.outputs.release_tag }}
+        tag_name: ${{ steps.release_tag.outputs.release_tag }}
         draft: false
         prerelease: false
 
