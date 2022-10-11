@@ -236,7 +236,11 @@ jobs:
     - name: Unpack FriendlyWrt Rootfs
       run: |
         cd project
-        tar xvzf "../rootfs*.tgz"
+        if [ "${{ matrix.DOCKER }}" == "yes" ]; then
+          tar xvzf "../rootfs-friendlywrt-22.03-docker.tgz"
+        else
+          tar xvzf "../rootfs-friendlywrt-22.03.tgz"
+        fi
 
     - name: Compile Uboot and Kernel
       run: |
