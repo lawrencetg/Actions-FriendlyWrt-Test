@@ -1,4 +1,4 @@
-name: Rootfs-FriendlyWrt-22.03-Docker
+name: FriendlyWrt-22.03-Docker
 on:
   watch:
     types: started
@@ -22,6 +22,10 @@ jobs:
         tag_name: ${{ steps.release_tag.outputs.release_tag }}
         draft: false
         prerelease: false
+    outputs:
+      release_tag: ${{ steps.release_tag.outputs.release_tag }}
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+
   prepare_friendlywrt22_docker_rootfs:
     needs: prepare_release
     runs-on: ubuntu-20.04
@@ -119,23 +123,20 @@ jobs:
         echo "##[set-output name=rootfs_filename;]$rootfs_filename"
         tree ../artifact/
 
-    - name: Get Release Tag
-      id: release_tag
-      run: |
-        release_tag="FriendlyWrt-$(date +%Y-%m-%d)"
-        echo "##[set-output name=release_tag;]$release_tag"
-
     - name: Upload Release Asset
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        upload_url: ${{ needs.prepare_release.outputs.upload_url }}
         asset_path: ./artifact/${{ steps.create_rootfs_package.outputs.rootfs_filename }}
         asset_name: ${{ steps.create_rootfs_package.outputs.rootfs_filename }}
         asset_content_type: application/gzip
+    outputs:
+      filename: ${{ steps.create_rootfs_package.outputs.rootfs_filename }}
+
   build:
-    needs: prepare_friendlywrt22_docker_rootfs
+    needs: [prepare_release,prepare_friendlywrt22_docker_rootfs]
     runs-on: ubuntu-20.04
     if: github.event.repository.owner.id == github.event.sender.id
 
@@ -178,25 +179,19 @@ jobs:
         repo sync -c scripts/sd-fuse  --no-clone-bundle
         repo sync -c toolchain  --no-clone-bundle
 
-    - name: Get Release Tag
-      id: release_tag
-      run: |
-        release_tag="FriendlyWrt-$(date +%Y-%m-%d)"
-        echo "##[set-output name=release_tag;]$release_tag"
-
     - name: Download FriendlyWrt Rootfs
       uses: robinraju/release-downloader@v1.5
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         repository: "lawrencetg/Actions-FriendlyWrt-Test"
-        tag: ${{ steps.release_tag.outputs.release_tag }}
-        fileName: "rootfs-friendlywrt-22.04-docker.tgz"
+        tag: ${{ needs.prepare_release.outputs.release_tag }}
+        fileName: ${{ needs.prepare_friendlywrt22_docker_rootfs.outputs.filename }}
 
     - name: Unpack FriendlyWrt Rootfs
       run: |
         cd project
-        tar xvzf ../rootfs-friendlywrt-22.04-docker.tgz && rm -f ../rootfs-friendlywrt-22.04-docker.tgz
+        tar xvzf ../${{ needs.prepare_friendlywrt22_docker_rootfs.outputs.filename }} && rm -f ../${{ needs.prepare_friendlywrt22_docker_rootfs.outputs.filename }}
 
     - name: Compile Uboot and Kernel
       run: |
@@ -214,22 +209,12 @@ jobs:
         cd ../artifact/
         gzip *.img
 
-    - name: Create Release
-      id: create_release
-      uses: softprops/action-gh-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ steps.release_tag.outputs.release_tag }}
-        draft: false
-        prerelease: false
-
     - name: Upload Release Asset
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        upload_url: ${{ needs.prepare_release.outputs.upload_url }}
         asset_path: ./artifact/R4S-Series-FriendlyWrt-22.03-Docker.img.gz
         asset_name: R4S-Series-FriendlyWrt-22.03-Docker.img.gz
         asset_content_type: application/gzip
