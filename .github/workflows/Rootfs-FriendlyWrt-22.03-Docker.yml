@@ -186,11 +186,13 @@ jobs:
         echo "##[set-output name=release_tag;]$release_tag"
 
     - name: Download FriendlyWrt Rootfs
-      - uses: robinraju/release-downloader@v1.5
-        with:
-          repository: "lawrencetg/Actions-FriendlyWrt-Test"
-          tag: ${{ steps.release_tag.outputs.release_tag }}
-          fileName: "rootfs-friendlywrt-22.04-docker.tgz"
+      uses: robinraju/release-downloader@v1.5
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        repository: "lawrencetg/Actions-FriendlyWrt-Test"
+        tag: ${{ steps.release_tag.outputs.release_tag }}
+        fileName: "rootfs-friendlywrt-22.04-docker.tgz"
 
     - name: Unpack FriendlyWrt Rootfs
       run: |
