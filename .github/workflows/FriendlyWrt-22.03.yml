@@ -251,7 +251,6 @@ jobs:
     - name: Build SD Image
       id: build_sd_image
       run: |
-        rm 1.tgz
         tar cvzf 1.tgz project
         suffix=
         if [ "${{ matrix.DOCKER }}" == "yes" ]; then
@@ -259,7 +258,7 @@ jobs:
         fi
         img_filename=${{ matrix.DOCKER }}-FriendlyWrt-22.03${suffix}.img
         cp 1.tgz artifact/${img_filename}
-        rm 1.tgz
+        rm -f 1.tgz
 
         cd project
         # ./build.sh sd-img
