@@ -3,7 +3,7 @@ on:
   watch:
     types: started
 jobs:
-  build-rootfs-friendlywrt-22.04-docker:
+  build_rootfs_friendlywrt_22.04_docker:
     name: Build
     runs-on: ubuntu-20.04
     if: github.event.repository.owner.id == github.event.sender.id
