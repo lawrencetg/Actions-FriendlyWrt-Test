@@ -256,7 +256,7 @@ jobs:
         if [ "${{ matrix.DOCKER }}" == "yes" ]; then
           suffix="-Docker"
         fi
-        img_filename=${{ matrix.DOCKER }}-FriendlyWrt-22.03${suffix}.img
+        img_filename=${{ matrix.CPU }}-FriendlyWrt-22.03${suffix}.img
         cp 1.tgz artifact/${img_filename}
         rm -f 1.tgz
 
