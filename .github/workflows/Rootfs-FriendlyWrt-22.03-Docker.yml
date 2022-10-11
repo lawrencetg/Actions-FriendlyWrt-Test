@@ -71,9 +71,9 @@ jobs:
     - name: Download Package
       run: |
         cd project/friendlywrt
-        make download -j8
-        find dl -size -1024c -exec ls -l {} \;
-        find dl -size -1024c -exec rm -f {} \;
+        # make download -j8
+        # find dl -size -1024c -exec ls -l {} \;
+        # find dl -size -1024c -exec rm -f {} \;
 
     - name: Compile FriendlyWrt
       id: compile
@@ -125,5 +125,6 @@ jobs:
         asset_path: ./artifact/${{ steps.create_rootfs_package.outputs.rootfs_filename }}
         asset_name: ${{ steps.create_rootfs_package.outputs.rootfs_filename }}
         asset_content_type: application/gzip
+        overwrite: true
 
 
