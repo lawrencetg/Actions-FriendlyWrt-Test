@@ -1,4 +1,3 @@
-name: FriendlyWrt-22.03
 on:
   watch:
     types: started
@@ -7,14 +6,14 @@ jobs:
     runs-on: ubuntu-20.04
     if: github.event.repository.owner.id == github.event.sender.id
     steps:
-    - name: Get Release Tag
+    - name: Get release tag
       id: release_tag
       run: |
         release_tag="FriendlyWrt-$(date +%Y-%m-%d)"
         echo "##[set-output name=release_tag;]$release_tag"
 
-    - name: Create Release
-      id: create_release
+    - name: Create empty release
+      id: release
       uses: softprops/action-gh-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -24,14 +23,15 @@ jobs:
         prerelease: false
     outputs:
       release_tag: ${{ steps.release_tag.outputs.release_tag }}
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      upload_url: ${{ steps.release.outputs.upload_url }}
 
-  prepare_friendlywrt22_rootfs:
+  prepare_friendlywrt_rootfs:
     needs: prepare_release
     runs-on: ubuntu-20.04
     strategy:
       matrix:
-        DOCKER: [yes, no]
+        VERSION: [21.02, 22.03]
+        SET: [docker, non-docker]
     if: github.event.repository.owner.id == github.event.sender.id
 
     steps:
@@ -57,11 +57,11 @@ jobs:
         sudo swapoff -a
         sudo rm -rf /usr/share/dotnet /usr/local/lib/android/sdk /usr/local/share/boost /opt/ghc
 
-    - name: Download Source
+    - name: Download source
       run: |
         mkdir project
         cd project
-        repo init --depth=1 -u https://github.com/friendlyarm/friendlywrt_manifests -b master-v22.03 \
+        repo init --depth=1 -u https://github.com/friendlyarm/friendlywrt_manifests -b master-v${{ matrix.VERSION }} \
                 -m rk3399.xml --repo-url=https://github.com/friendlyarm/repo  --no-clone-bundle
 
         repo sync -c friendlywrt --no-clone-bundle
@@ -70,46 +70,48 @@ jobs:
         repo sync -c device/friendlyelec --no-clone-bundle
         repo sync -c scripts --no-clone-bundle
         repo sync -c scripts/sd-fuse  --no-clone-bundle
-        repo sync -c toolchain  --no-clone-bundle
 
-    - name: Apply Customizations
+    - name: Apply customizations
       run: |
         cd project
         source ../scripts/add_packages.sh
         source ../scripts/custome_config.sh
 
-    - name: Prepare Config and Feeds
+    - name: Prepare dot config and feeds
       run: |
         cd project
-        if [ "${{ matrix.DOCKER }}" == "yes" ]; then
-          cat > .current_config.mk <<EOL
-          . device/friendlyelec/rk3399/base.mk
-          TARGET_IMAGE_DIRNAME=friendlywrt22-docker
-          TARGET_FRIENDLYWRT_CONFIG=rockchip-docker
-        EOL
-        else
-          cat > .current_config.mk <<EOL
-          . device/friendlyelec/rk3399/base.mk
-          TARGET_IMAGE_DIRNAME=friendlywrt22
-          TARGET_FRIENDLYWRT_CONFIG=rockchip
-        EOL
+        DIRNAME=friendlywrt21
+        if [ "${{ matrix.VERSION }}" == "22.03" ]; then
+          DIRNAME=friendlywrt22
         fi
+        CONFIG=rockchip
+        if [ "${{ matrix.SET }}" == "docker" ]; then
+          CONFIG=rockchip-docker
+          DIRNAME=${DIRNAME}-docker
+        fi
+        cat > .current_config.mk <<EOL
+          . device/friendlyelec/rk3399/base.mk
+          TARGET_IMAGE_DIRNAME=${DIRNAME}
+          TARGET_FRIENDLYWRT_CONFIG=${CONFIG}
+        EOL
+
+        sed -i 's/^\s*install_toolchain/# install_toolchain/g' ./build.sh
         DEBUG_DOT_CONFIG=1 ./build.sh friendlywrt
 
-    - name: Enable Cache
+    - name: Enable cache
       uses: HiGarfield/cachewrtbuild@main
       with:
-        mixkey: ${{ github.workflow }}
+        mixkey: ${{ matrix.VERSION }}-${{ matrix.SET }}
         prefix: ${{ github.workspace }}/project/friendlywrt
 
-    - name: Download Package
+    - name: Download package
       run: |
         cd project/friendlywrt
         # make download -j8
         # find dl -size -1024c -exec ls -l {} \;
         # find dl -size -1024c -exec rm -f {} \;
 
-    - name: Compile FriendlyWrt
+    - name: Compile friendlyWrt
       id: compile
       continue-on-error: true
       run: |
@@ -117,28 +119,26 @@ jobs:
         # make -j$[`nproc` + 1] || make -j1 V=s
         echo $?
 
-    - name: Check The Result And Try Again
+    - name: Check the result and try again
       if: steps.compile.outcome == 'failure'
       run: |
         cd project/friendlywrt
         # make -j1 V=s
 
-    - name: Create Rootfs Package
+    - name: Create rootfs package
       id: create_rootfs_package
       run: |
         cd project
         source .current_config.mk
         mkdir -p ${FRIENDLYWRT_SRC}/${FRIENDLYWRT_ROOTFS}  #todo
-        if [ "${{ matrix.DOCKER }}" == "yes" ]; then
-          rootfs_filename="rootfs-friendlywrt-22.03-docker.tgz"
-        else
-          rootfs_filename="rootfs-friendlywrt-22.03.tgz"
+        rootfs_filename="rootfs-friendlywrt-${{ matrix.VERSION }}.tgz"
+        if [ "${{ matrix.SET }}" == "docker" ]; then
+          rootfs_filename="rootfs-friendlywrt-${{ matrix.VERSION }}-docker.tgz"
         fi
         tar cvzf ../artifact/${rootfs_filename} ${FRIENDLYWRT_SRC}/${FRIENDLYWRT_ROOTFS}
         echo "##[set-output name=rootfs_filename;]$rootfs_filename"
-        tree ../artifact/
 
-    - name: Upload Release Asset
+    - name: Upload rootfs package
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -148,15 +148,16 @@ jobs:
         asset_name: ${{ steps.create_rootfs_package.outputs.rootfs_filename }}
         asset_content_type: application/gzip
 
-  build:
-    needs: [prepare_release,prepare_friendlywrt22_rootfs]
+  build_img:
+    needs: [prepare_release,prepare_friendlywrt_rootfs]
     runs-on: ubuntu-20.04
     if: github.event.repository.owner.id == github.event.sender.id
 
     strategy:
       matrix:
+        VERSION: [21.02, 22.03]
         CPU: [rk3328, rk3399, rk3568]
-        DOCKER: [yes, no]
+        SET: [docker, non-docker]
     steps:
     - name: Checkout
       uses: actions/checkout@main
@@ -184,11 +185,12 @@ jobs:
       run: |
         mkdir project
         cd project
-        repo init --depth=1 -u https://github.com/friendlyarm/friendlywrt_manifests -b master-v22.03 \
+        repo init --depth=1 -u https://github.com/friendlyarm/friendlywrt_manifests -b master-v${{ matrix.VERSION }} \
                 -m ${{ matrix.CPU }}.xml --repo-url=https://github.com/friendlyarm/repo  --no-clone-bundle
 
         repo sync -c kernel --no-clone-bundle
         repo sync -c u-boot --no-clone-bundle
+        repo sync -c rkbin --no-clone-bundle
         repo sync -c configs --no-clone-bundle
         repo sync -c device/common --no-clone-bundle
         repo sync -c device/friendlyelec --no-clone-bundle
@@ -196,85 +198,100 @@ jobs:
         repo sync -c scripts/sd-fuse  --no-clone-bundle
         repo sync -c toolchain  --no-clone-bundle
 
-    - name: Download FriendlyWrt Rootfs
-      if: matrix.DOCKER == 'no'
+    - name: Download friendlywrt rootfs
+      if: matrix.SET == 'non-docker'
       uses: robinraju/release-downloader@v1.5
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         repository: "lawrencetg/Actions-FriendlyWrt-Test"
         tag: ${{ needs.prepare_release.outputs.release_tag }}
-        fileName: "rootfs-friendlywrt-22.03.tgz"
+        fileName: "rootfs-friendlywrt-${{ matrix.VERSION }}.tgz"
 
     - name: Download FriendlyWrt Rootfs (Docker)
-      if: matrix.DOCKER == 'yes'
+      if: matrix.SET == 'docker'
       uses: robinraju/release-downloader@v1.5
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         repository: "lawrencetg/Actions-FriendlyWrt-Test"
         tag: ${{ needs.prepare_release.outputs.release_tag }}
-        fileName: "rootfs-friendlywrt-22.03-docker.tgz"
+        fileName: "rootfs-friendlywrt-${{ matrix.VERSION }}-docker.tgz"
 
-    - name: Prepare Config
+    - name: Prepare config
+      id: config
       run: |
         cd project
-        if [ "${{ matrix.DOCKER }}" == "yes" ]; then
-          cat > .current_config.mk <<EOL
-          . device/friendlyelec/rk3399/base.mk
-          TARGET_IMAGE_DIRNAME=friendlywrt22-docker
-          TARGET_FRIENDLYWRT_CONFIG=rockchip-docker
-        EOL
-        else
-          cat > .current_config.mk <<EOL
-          . device/friendlyelec/rk3399/base.mk
-          TARGET_IMAGE_DIRNAME=friendlywrt22
-          TARGET_FRIENDLYWRT_CONFIG=rockchip
-        EOL
+        case ${{ matrix.CPU }} in
+        rk3328)
+          MODEL=R2S-R2C-Series
+          ;;
+        rk3399)
+          MODEL=R4S-Series
+          ;;
+        rk3568)
+          MODEL=R5S
+          ;;
+        *)
+          echo "unknow cpu"
+          exit 1
+          ;;
+        esac
+        FILENAME=${MODEL}-FriendlyWrt-22.03.img
+        DIRNAME=friendlywrt21
+        if [ "${{ matrix.VERSION }}" == "22.03" ]; then
+          DIRNAME=friendlywrt22
         fi
+        CONFIG=rockchip
+        if [ "${{ matrix.SET }}" == "docker" ]; then
+          CONFIG=rockchip-docker
+          DIRNAME=${DIRNAME}-docker
+          FILENAME=${MODEL}-FriendlyWrt-22.03-Docker.img
+        fi
+        cat > .current_config.mk <<EOL
+          . device/friendlyelec/rk3399/base.mk
+          TARGET_IMAGE_DIRNAME=${DIRNAME}
+          TARGET_FRIENDLYWRT_CONFIG=${CONFIG}
+          TARGET_SD_RAW_FILENAME=${FILENAME}
+        EOL
+        echo "##[set-output name=img_filename;]$FILENAME"
 
-    - name: Unpack FriendlyWrt Rootfs
+    - name: Unpack friendlywrt rootfs
       run: |
         cd project
-        if [ "${{ matrix.DOCKER }}" == "yes" ]; then
-          tar xvzf "../rootfs-friendlywrt-22.03-docker.tgz"
+        if [ "${{ matrix.SET }}" == "docker" ]; then
+          tar xvzf "../rootfs-friendlywrt-${{ matrix.VERSION }}-docker.tgz"
         else
-          tar xvzf "../rootfs-friendlywrt-22.03.tgz"
+          tar xvzf "../rootfs-friendlywrt-${{ matrix.VERSION }}.tgz"
         fi
 
-    - name: Compile Uboot and Kernel
+    - name: Compile uboot and kernel
       run: |
         cd project
         # ./build.sh kernel
         # ./build.sh uboot
 
-    - name: Build SD Image
+    - name: Build sd image
       id: build_sd_image
       run: |
         tar cvzf 1.tgz project
-        suffix=
-        if [ "${{ matrix.DOCKER }}" == "yes" ]; then
-          suffix="-Docker"
-        fi
-        img_filename=${{ matrix.CPU }}-FriendlyWrt-22.03${suffix}.img
-        cp 1.tgz artifact/${img_filename}
+        cp 1.tgz artifact/${{ steps.config.outputs.img_filename }}
         rm -f 1.tgz
 
         cd project
         # ./build.sh sd-img
-        # mv out/${img_filename} ../artifact/
+        # mv out/${{ steps.config.outputs.img_filename }} ../artifact/
         cd ../artifact/
         gzip *.img
-        echo "##[set-output name=img_filename;]$img_filename"
 
-    - name: Upload Release Asset
+    - name: Upload release asset
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ needs.prepare_release.outputs.upload_url }}
-        asset_path: ./artifact/${{ steps.build_sd_image.outputs.img_filename }}.gz
-        asset_name: ${{ steps.build_sd_image.outputs.img_filename }}.gz
+        asset_path: ./artifact/${{ steps.config.outputs.img_filename }}.gz
+        asset_name: ${{ steps.config.outputs.img_filename }}.gz
         asset_content_type: application/gzip
 
 
