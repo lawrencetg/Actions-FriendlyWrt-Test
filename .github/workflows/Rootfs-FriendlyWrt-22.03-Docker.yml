@@ -134,7 +134,6 @@ jobs:
         asset_path: ./artifact/${{ steps.create_rootfs_package.outputs.rootfs_filename }}
         asset_name: ${{ steps.create_rootfs_package.outputs.rootfs_filename }}
         asset_content_type: application/gzip
-        overwrite: true
   build:
     needs: prepare_friendlywrt22_docker_rootfs
     runs-on: ubuntu-20.04
