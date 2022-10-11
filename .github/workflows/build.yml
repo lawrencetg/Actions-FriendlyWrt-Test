@@ -25,7 +25,7 @@ jobs:
       release_tag: ${{ steps.release_tag.outputs.release_tag }}
       upload_url: ${{ steps.release.outputs.upload_url }}
 
-  prepare_friendlywrt_rootfs:
+  build_friendlywrt:
     needs: prepare_release
     runs-on: ubuntu-20.04
     strategy:
@@ -90,11 +90,10 @@ jobs:
           DIRNAME=${DIRNAME}-docker
         fi
         cat > .current_config.mk <<EOL
-          . device/friendlyelec/rk3399/base.mk
-          TARGET_IMAGE_DIRNAME=${DIRNAME}
-          TARGET_FRIENDLYWRT_CONFIG=${CONFIG}
+        . device/friendlyelec/rk3399/base.mk
+        TARGET_IMAGE_DIRNAME=${DIRNAME}
+        TARGET_FRIENDLYWRT_CONFIG=${CONFIG}
         EOL
-
         sed -i 's/^\s*install_toolchain/# install_toolchain/g' ./build.sh
         DEBUG_DOT_CONFIG=1 ./build.sh friendlywrt
 
@@ -249,10 +248,10 @@ jobs:
           FILENAME=${MODEL}-FriendlyWrt-22.03-Docker.img
         fi
         cat > .current_config.mk <<EOL
-          . device/friendlyelec/rk3399/base.mk
-          TARGET_IMAGE_DIRNAME=${DIRNAME}
-          TARGET_FRIENDLYWRT_CONFIG=${CONFIG}
-          TARGET_SD_RAW_FILENAME=${FILENAME}
+        . device/friendlyelec/${{ matrix.CPU }}/base.mk
+        TARGET_IMAGE_DIRNAME=${DIRNAME}
+        TARGET_FRIENDLYWRT_CONFIG=${CONFIG}
+        TARGET_SD_RAW_FILENAME=${FILENAME}
         EOL
         echo "##[set-output name=img_filename;]$FILENAME"
 
