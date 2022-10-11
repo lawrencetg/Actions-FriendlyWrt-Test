@@ -3,8 +3,27 @@ on:
   watch:
     types: started
 jobs:
+  prepare_release:
+    runs-on: ubuntu-20.04
+    if: github.event.repository.owner.id == github.event.sender.id
+    steps:
+    - name: Get Release Tag
+      id: release_tag
+      run: |
+        release_tag="FriendlyWrt-$(date +%Y-%m-%d)"
+        echo "##[set-output name=release_tag;]$release_tag"
+
+    - name: Create Release
+      id: create_release
+      uses: softprops/action-gh-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.release_tag.outputs.release_tag }}
+        draft: false
+        prerelease: false
   prepare_friendlywrt22_docker_rootfs:
-    name: Prepare FriendyWrt-22.03-Docker Rootfs
+    needs: prepare_release
     runs-on: ubuntu-20.04
     if: github.event.repository.owner.id == github.event.sender.id
 
@@ -106,16 +125,6 @@ jobs:
         release_tag="FriendlyWrt-$(date +%Y-%m-%d)"
         echo "##[set-output name=release_tag;]$release_tag"
 
-    - name: Create Release
-      id: create_release
-      uses: softprops/action-gh-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ steps.release_tag.outputs.release_tag }}
-        draft: false
-        prerelease: false
-
     - name: Upload Release Asset
       uses: actions/upload-release-asset@v1
       env:
@@ -127,9 +136,8 @@ jobs:
         asset_content_type: application/gzip
         overwrite: true
   build:
-    name: Build
-    runs-on: ubuntu-20.04
     needs: prepare_friendlywrt22_docker_rootfs
+    runs-on: ubuntu-20.04
     if: github.event.repository.owner.id == github.event.sender.id
 
     steps:
