@@ -265,7 +265,7 @@ jobs:
         # mv out/${img_filename} ../artifact/
         cd ../artifact/
         gzip *.img
-        echo "##[set-output name=filename;]${img_filename}.gz"
+        echo "##[set-output name=img_filename;]$img_filename"
 
     - name: Upload Release Asset
       uses: actions/upload-release-asset@v1
@@ -273,8 +273,8 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ needs.prepare_release.outputs.upload_url }}
-        asset_path: ./artifact/${{ steps.build_sd_image.filename }}
-        asset_name: ${{ steps.build_sd_image.filename }}
+        asset_path: ./artifact/${{ steps.build_sd_image.outputs.img_filename }}.gz
+        asset_name: ${{ steps.build_sd_image.outputs.img_filename }}.gz
         asset_content_type: application/gzip
 
 
