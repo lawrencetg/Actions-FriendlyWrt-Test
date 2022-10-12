@@ -91,12 +91,13 @@ jobs:
         TARGET_FRIENDLYWRT_CONFIG=${CONFIG}
         EOL
         DEBUG_DOT_CONFIG=1 ./build.sh friendlywrt
+        cat friendlywrt/.config
 
-    - name: Enable cache
-      uses: HiGarfield/cachewrtbuild@main
-      with:
-        mixkey: ${{ matrix.VERSION }}-${{ matrix.SET }}
-        prefix: ${{ github.workspace }}/project/friendlywrt
+    # - name: Enable cache
+    #   uses: HiGarfield/cachewrtbuild@main
+    #   with:
+    #     mixkey: ${{ matrix.VERSION }}-${{ matrix.SET }}
+    #     prefix: ${{ github.workspace }}/project/friendlywrt
 
     - name: Download package
       run: |
