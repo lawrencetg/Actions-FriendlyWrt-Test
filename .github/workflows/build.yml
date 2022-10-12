@@ -95,6 +95,8 @@ jobs:
         TARGET_FRIENDLYWRT_CONFIG=${CONFIG}
         EOL
         sed -i 's/^\s*install_toolchain/# install_toolchain/g' ./build.sh
+
+        ls -l -a
         DEBUG_DOT_CONFIG=1 ./build.sh friendlywrt
 
     - name: Enable cache
