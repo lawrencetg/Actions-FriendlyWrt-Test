@@ -275,7 +275,7 @@ jobs:
     - name: Build sd image
       id: build_sd_image
       run: |
-        tar cvzf 1.tgz project
+        tar cvzf 1.tgz project/.current_config.mk project/device
         cp 1.tgz artifact/${{ steps.config.outputs.img_filename }}
         rm -f 1.tgz
 
@@ -285,14 +285,22 @@ jobs:
         cd ../artifact/
         gzip *.img
 
-    - name: Upload release asset
-      uses: actions/upload-release-asset@v1.0.2
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ needs.prepare_release.outputs.upload_url }}
-        asset_path: ./artifact/${{ steps.config.outputs.img_filename }}.gz
-        asset_name: ${{ steps.config.outputs.img_filename }}.gz
-        asset_content_type: application/gzip
+    # - name: Upload release asset
+    #   uses: actions/upload-release-asset@v1.0.2
+    #   env:
+    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    #   with:
+    #     upload_url: ${{ needs.prepare_release.outputs.upload_url }}
+    #     asset_path: ./artifact/${{ steps.config.outputs.img_filename }}.gz
+    #     asset_name: ${{ steps.config.outputs.img_filename }}.gz
+    #     asset_content_type: application/gzip
 
+    - name: Upload image to release
+      uses: svenstaro/upload-release-action@v2
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: ./artifact/${{ steps.config.outputs.img_filename }}.gz
+        asset_name: ${{ steps.config.outputs.img_filename }}.gz
+        tag: ${{ needs.prepare_release.outputs.release_tag }}
+        overwrite: true
 
