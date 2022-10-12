@@ -64,7 +64,8 @@ jobs:
         repo init --depth=1 -u https://github.com/friendlyarm/friendlywrt_manifests -b master-v${{ matrix.VERSION }} \
                 -m rk3399.xml --repo-url=https://github.com/friendlyarm/repo  --no-clone-bundle
 
-        repo sync -c friendlywrt --no-clone-bundle
+        # todo# repo sync -c friendlywrt --no-clone-bundle
+        mkdir friendlywrt
         repo sync -c configs --no-clone-bundle
         repo sync -c device/common --no-clone-bundle
         repo sync -c device/friendlyelec --no-clone-bundle
@@ -94,9 +95,9 @@ jobs:
         TARGET_IMAGE_DIRNAME=${DIRNAME}
         TARGET_FRIENDLYWRT_CONFIG=${CONFIG}
         EOL
-        sed -i 's/^\s*install_toolchain/# install_toolchain/g' ./build.sh
-
-        ls -l -a
+        (cd scripts && {
+          sed -i 's/^\s*install_toolchain/# install_toolchain/g' ./build.sh
+        })
         DEBUG_DOT_CONFIG=1 ./build.sh friendlywrt
 
     - name: Enable cache
