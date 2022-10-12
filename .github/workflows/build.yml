@@ -238,17 +238,20 @@ jobs:
           exit 1
           ;;
         esac
-        FILENAME=${MODEL}-FriendlyWrt-22.03.img
+
+        FILENAME=${MODEL}-FriendlyWrt-${{ matrix.VERSION }}.img
         DIRNAME=friendlywrt21
+        CONFIG=rockchip
+
         if [ "${{ matrix.VERSION }}" == "22.03" ]; then
           DIRNAME=friendlywrt22
         fi
-        CONFIG=rockchip
         if [ "${{ matrix.SET }}" == "docker" ]; then
           CONFIG=rockchip-docker
           DIRNAME=${DIRNAME}-docker
-          FILENAME=${MODEL}-FriendlyWrt-22.03-Docker.img
+          FILENAME=${MODEL}-FriendlyWrt-${{ matrix.VERSION }}-Docker.img
         fi
+
         cat > .current_config.mk <<EOL
         . device/friendlyelec/${{ matrix.CPU }}/base.mk
         TARGET_IMAGE_DIRNAME=${DIRNAME}
@@ -285,22 +288,22 @@ jobs:
         cd ../artifact/
         gzip *.img
 
-    # - name: Upload release asset
-    #   uses: actions/upload-release-asset@v1.0.2
-    #   env:
-    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    #   with:
-    #     upload_url: ${{ needs.prepare_release.outputs.upload_url }}
-    #     asset_path: ./artifact/${{ steps.config.outputs.img_filename }}.gz
-    #     asset_name: ${{ steps.config.outputs.img_filename }}.gz
-    #     asset_content_type: application/gzip
-
-    - name: Upload image to release
-      uses: svenstaro/upload-release-action@v2
+    - name: Upload release asset
+      uses: actions/upload-release-asset@v1.0.2
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        file: ./artifact/${{ steps.config.outputs.img_filename }}.gz
+        upload_url: ${{ needs.prepare_release.outputs.upload_url }}
+        asset_path: ./artifact/${{ steps.config.outputs.img_filename }}.gz
         asset_name: ${{ steps.config.outputs.img_filename }}.gz
-        tag: ${{ needs.prepare_release.outputs.release_tag }}
-        overwrite: true
+        asset_content_type: application/gzip
+
+    # - name: Upload image to release
+    #   uses: svenstaro/upload-release-action@v2
+    #   with:
+    #     repo_token: ${{ secrets.GITHUB_TOKEN }}
+    #     file: ./artifact/${{ steps.config.outputs.img_filename }}.gz
+    #     asset_name: ${{ steps.config.outputs.img_filename }}.gz
+    #     tag: ${{ needs.prepare_release.outputs.release_tag }}
+    #     overwrite: true
 
