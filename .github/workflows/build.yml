@@ -103,34 +103,31 @@ jobs:
     - name: Download package
       run: |
         cd project/friendlywrt
-        # make download -j8
-        # find dl -size -1024c -exec ls -l {} \;
-        # find dl -size -1024c -exec rm -f {} \;
+        make download -j50
+        find dl -size -1024c -exec ls -l {} \;
+        find dl -size -1024c -exec rm -f {} \;
 
     - name: Compile friendlyWrt
       id: compile
       continue-on-error: true
       run: |
-        # cd project/friendlywrt
-        # make -j$[`nproc` + 1] || make -j1 V=s
+        cd project/friendlywrt
+        make -j$[`nproc` + 1] || make -j1 V=s
         echo $?
 
     - name: Check the result and try again
       if: steps.compile.outcome == 'failure'
       run: |
         cd project/friendlywrt
-        # make -j1 V=s
+        make -j1 V=s
 
     - name: Create rootfs package
       id: create_rootfs_package
       run: |
         cd project
         source .current_config.mk
-        mkdir -p ${FRIENDLYWRT_SRC}/${FRIENDLYWRT_ROOTFS}  #todo
-        rootfs_filename="rootfs-friendlywrt-${{ matrix.VERSION }}.tgz"
-        if [ "${{ matrix.SET }}" == "docker" ]; then
-          rootfs_filename="rootfs-friendlywrt-${{ matrix.VERSION }}-docker.tgz"
-        fi
+        [ "${{ matrix.SET }}" == "docker" ] && SUFFIX="-docker"
+        rootfs_filename="rootfs-friendlywrt-${{ matrix.VERSION }}${SUFFIX}.tgz"
         tar cvzf ../artifact/${rootfs_filename} ${FRIENDLYWRT_SRC}/${FRIENDLYWRT_ROOTFS}
         echo "##[set-output name=rootfs_filename;]$rootfs_filename"
 
@@ -199,7 +196,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        repository: "lawrencetg/Actions-FriendlyWrt-Test"
+        repository: ${{ github.repository }}
         tag: ${{ needs.prepare_release.outputs.release_tag }}
         fileName: "rootfs-friendlywrt-${{ matrix.VERSION }}.tgz"
 
@@ -209,7 +206,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        repository: "lawrencetg/Actions-FriendlyWrt-Test"
+        repository: ${{ github.repository }}
         tag: ${{ needs.prepare_release.outputs.release_tag }}
         fileName: "rootfs-friendlywrt-${{ matrix.VERSION }}-docker.tgz"
 
@@ -232,11 +229,8 @@ jobs:
           exit 1
           ;;
         esac
-        FILENAME=${MODEL}-FriendlyWrt-${{ matrix.VERSION }}.img
-        if [ "${{ matrix.SET }}" == "docker" ]; then
-          FILENAME=${MODEL}-FriendlyWrt-${{ matrix.VERSION }}-Docker.img
-          SUFFIX="-docker"
-        fi
+        [ "${{ matrix.SET }}" == "docker" ] && SUFFIX="-docker"
+        FILENAME=${MODEL}-FriendlyWrt-${{ matrix.VERSION }}${SUFFIX}.img
         DIRNAME=friendlywrt$(echo ${{ matrix.VERSION }}|awk -F . '{print $1}')${SUFFIX}
         CONFIG=rockchip${SUFFIX}
         cat > .current_config.mk <<EOL
@@ -251,28 +245,21 @@ jobs:
     - name: Unpack friendlywrt rootfs
       run: |
         cd project
-        if [ "${{ matrix.SET }}" == "docker" ]; then
-          tar xvzf "../rootfs-friendlywrt-${{ matrix.VERSION }}-docker.tgz"
-        else
-          tar xvzf "../rootfs-friendlywrt-${{ matrix.VERSION }}.tgz"
-        fi
+        [ "${{ matrix.SET }}" == "docker" ] && SUFFIX="-docker"
+        tar xvzf "../rootfs-friendlywrt-${{ matrix.VERSION }}${SUFFIX}.tgz"
 
     - name: Compile uboot and kernel
       run: |
         cd project
-        # ./build.sh kernel
-        # ./build.sh uboot
+        ./build.sh kernel
+        ./build.sh uboot
 
     - name: Build sd image
       id: build_sd_image
       run: |
-        tar cvzf 1.tgz project/.current_config.mk project/device
-        cp 1.tgz artifact/${{ steps.config.outputs.img_filename }}
-        rm -f 1.tgz
-
         cd project
-        # ./build.sh sd-img
-        # mv out/${{ steps.config.outputs.img_filename }} ../artifact/
+        ./build.sh sd-img
+        mv out/${{ steps.config.outputs.img_filename }} ../artifact/
         cd ../artifact/
         gzip *.img
 
