@@ -91,7 +91,6 @@ jobs:
         TARGET_FRIENDLYWRT_CONFIG=${CONFIG}
         EOL
         DEBUG_DOT_CONFIG=1 ./build.sh friendlywrt
-        cat friendlywrt/.config
 
     # - name: Enable cache
     #   uses: HiGarfield/cachewrtbuild@main
