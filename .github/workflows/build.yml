@@ -78,6 +78,7 @@ jobs:
         cd project
         source ../scripts/add_packages.sh
         source ../scripts/custome_config.sh
+        source ../scripts/apply_external_toolchain.sh ${{ matrix.VERSION }}
 
     - name: Prepare dot config and feeds
       run: |
