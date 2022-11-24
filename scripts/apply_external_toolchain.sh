@@ -13,7 +13,7 @@ case $1 in
 esac
 
 mkdir -p ~/openwrt
-tar xvjf ~/toolchain.tar.xz --strip-components 1 -C ~/openwrt
+tar xvf ~/toolchain.tar.xz --strip-components 1 -C ~/openwrt
 (cd ~/openwrt && mv toolchain* toolchain)
 toolchain_root=$(readlink -f ~/openwrt/toolchain)
 
