@@ -30,8 +30,8 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       matrix:
-        VERSION: [21.02, 22.03]
-        SET: [docker, non-docker]
+        VERSION: [22.03]
+        SET: [non-docker]
     if: github.event.repository.owner.id == github.event.sender.id
 
     steps:
