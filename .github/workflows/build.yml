@@ -32,7 +32,7 @@ jobs:
     strategy:
       matrix:
         VERSION: [22.03]
-        SET: [docker]
+        SET: [non-docker]
 
     steps:
     - name: Checkout
@@ -143,7 +143,7 @@ jobs:
       matrix:
         VERSION: [22.03]
         CPU: [rk3588]
-        SET: [docker]
+        SET: [non-docker]
     steps:
     - name: Checkout
       uses: actions/checkout@main
