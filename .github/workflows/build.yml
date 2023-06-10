@@ -25,125 +25,16 @@ jobs:
       release_tag: ${{ steps.release_tag.outputs.release_tag }}
       upload_url: ${{ steps.release.outputs.upload_url }}
 
-  build_friendlywrt:
-    needs: prepare_release
-    runs-on: ubuntu-20.04
-    if: github.event.repository.owner.id == github.event.sender.id
-    strategy:
-      matrix:
-        VERSION: [22.03]
-        SET: [non-docker]
-
-    steps:
-    - name: Checkout
-      uses: actions/checkout@main
-
-    - name: Initialization environment
-      env:
-        DEBIAN_FRONTEND: noninteractive
-      run: |
-        sudo rm -rf /etc/apt/sources.list.d
-        wget https://raw.githubusercontent.com/friendlyarm/build-env-on-ubuntu-bionic/master/install.sh
-        sed -i -e 's/^apt-get -y install openjdk-8-jdk/# apt-get -y install openjdk-8-jdk/g' install.sh
-        sed -i -e 's/^\[ -d fa-toolchain \]/# [ -d fa-toolchain ]/g' install.sh
-        sed -i -e 's/^(cat fa-toolchain/# (cat fa-toolchain/g' install.sh
-        sed -i -e 's/^(tar xf fa-toolchain/# (tar xf fa-toolchain/g' install.sh
-        sudo -E bash ./install.sh
-        sudo -E update-alternatives --install $(which python) python /usr/bin/python2.7 20
-        sudo -E git config --global user.name 'GitHub Actions'
-        sudo -E git config --global user.email 'noreply@github.com'
-        git clone https://github.com/friendlyarm/repo
-        sudo -E cp repo/repo /usr/bin/
-        mkdir -p ./artifact
-        sudo swapoff -a
-        sudo rm -rf /usr/share/dotnet /usr/local/lib/android/sdk /usr/local/share/boost /opt/ghc
-        echo "cores: $(nproc)"
-
-    - name: Download source
-      run: |
-        mkdir project
-        cd project
-        repo init --depth=1 -u https://github.com/friendlyarm/friendlywrt_manifests -b master-v${{ matrix.VERSION }} \
-                -m rk3399.xml --repo-url=https://github.com/friendlyarm/repo  --no-clone-bundle
-
-        repo sync -c friendlywrt --no-clone-bundle
-        repo sync -c configs --no-clone-bundle
-        repo sync -c device/common --no-clone-bundle
-        repo sync -c device/friendlyelec --no-clone-bundle
-        repo sync -c scripts --no-clone-bundle
-        repo sync -c scripts/sd-fuse  --no-clone-bundle
-        repo sync -c toolchain  --no-clone-bundle
-
-    - name: Apply customizations
-      run: |
-        cd project
-        source ../scripts/add_packages.sh
-        source ../scripts/custome_config.sh
-
-    - name: Prepare dot config and feeds
-      run: |
-        cd project
-        [ "${{ matrix.SET }}" == "docker" ] && SUFFIX="-docker"
-        DIRNAME=friendlywrt$(echo ${{ matrix.VERSION }}|awk -F . '{print $1}')${SUFFIX}
-        CONFIG=rockchip${SUFFIX}
-        cat > .current_config.mk <<EOL
-        . device/friendlyelec/rk3399/base.mk
-        TARGET_IMAGE_DIRNAME=${DIRNAME}
-        TARGET_FRIENDLYWRT_CONFIG=${CONFIG}
-        EOL
-        DEBUG_DOT_CONFIG=1 ./build.sh friendlywrt
-
-    - name: Download package
-      run: |
-        cd project/friendlywrt
-        make download -j8
-        find dl -size -1024c -exec ls -l {} \;
-        find dl -size -1024c -exec rm -f {} \;
-
-    - name: Compile friendlyWrt
-      id: compile
-      continue-on-error: true
-      run: |
-        cd project/friendlywrt
-        make -j$(nproc) || make -j1 V=s
-        echo $?
-
-    - name: Check the result and try again
-      if: steps.compile.outcome == 'failure'
-      run: |
-        cd project/friendlywrt
-        make -j1 V=s
-
-    - name: Create rootfs package
-      id: create_rootfs_package
-      run: |
-        cd project
-        source .current_config.mk
-        [ "${{ matrix.SET }}" == "docker" ] && SUFFIX="-docker"
-        rootfs_filename="rootfs-friendlywrt-${{ matrix.VERSION }}${SUFFIX}.tgz"
-        tar cvzf ../artifact/${rootfs_filename} ${FRIENDLYWRT_SRC}/${FRIENDLYWRT_ROOTFS} \
-              ${FRIENDLYWRT_SRC}/${FRIENDLYWRT_PACKAGE_DIR}
-        echo "##[set-output name=rootfs_filename;]$rootfs_filename"
-
-    - name: Upload rootfs package
-      uses: svenstaro/upload-release-action@v2
-      with:
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        file: ./artifact/${{ steps.create_rootfs_package.outputs.rootfs_filename }}
-        asset_name: ${{ steps.create_rootfs_package.outputs.rootfs_filename }}
-        tag: ${{ needs.prepare_release.outputs.release_tag }}
-        overwrite: true
-
   build_img:
-    needs: [prepare_release,build_friendlywrt]
+    needs: [prepare_release]
     runs-on: ubuntu-20.04
     if: github.event.repository.owner.id == github.event.sender.id
 
     strategy:
       matrix:
-        VERSION: [22.03]
-        CPU: [rk3568]
-        SET: [non-docker]
+        VERSION: [21.02, 22.03]
+        CPU: [rk3568, rk3588]
+        SET: [docker, non-docker]
     steps:
     - name: Checkout
       uses: actions/checkout@main
@@ -169,7 +60,31 @@ jobs:
         sudo rm -rf /usr/share/dotnet /usr/local/lib/android/sdk /usr/local/share/boost /opt/ghc
         echo "cores: $(nproc)"
 
-    - name: Download source
+    - name: Download rootfs from aliyun
+      run: |
+        case ${{ matrix.VERSION }} in
+        22.*)
+          if [ "${{ matrix.SET }}" = "docker" ]; then
+            ROOTFS=rootfs-friendlywrt22-docker.tgz
+          else
+            ROOTFS=rootfs-friendlywrt22.tgz
+          fi
+          ;;
+        21.*)
+          if [ "${{ matrix.SET }}" = "docker" ]; then
+            ROOTFS=rootfs-friendlywrt21-docker.tgz
+          else
+            ROOTFS=rootfs-friendlywrt21.tgz
+          fi
+          ;;
+        *)
+          echo "unknow version"
+          exit 1
+          ;;
+        esac
+        wget http://112.124.9.243/dvdfiles/${{ matrix.CPU }}/rootfs/${ROOTFS} -O rootfs-friendlywrt-${{ matrix.VERSION }}.tgz
+
+    - name: Download source and tools
       run: |
         mkdir project
         cd project
@@ -185,26 +100,6 @@ jobs:
         repo sync -c scripts --no-clone-bundle
         repo sync -c scripts/sd-fuse  --no-clone-bundle
         repo sync -c toolchain  --no-clone-bundle
-
-    - name: Download friendlywrt rootfs (non-docker)
-      if: matrix.SET == 'non-docker'
-      uses: robinraju/release-downloader@v1.6
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        repository: ${{ github.repository }}
-        tag: ${{ needs.prepare_release.outputs.release_tag }}
-        fileName: "rootfs-friendlywrt-${{ matrix.VERSION }}.tgz"
-
-    - name: Download friendlywrt rootfs (docker)
-      if: matrix.SET == 'docker'
-      uses: robinraju/release-downloader@v1.6
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        repository: ${{ github.repository }}
-        tag: ${{ needs.prepare_release.outputs.release_tag }}
-        fileName: "rootfs-friendlywrt-${{ matrix.VERSION }}-docker.tgz"
 
     - name: Prepare config
       id: config
