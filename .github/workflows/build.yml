@@ -142,7 +142,7 @@ jobs:
     strategy:
       matrix:
         VERSION: [21.02, 22.03]
-        CPU: [rk3328, rk3399, rk3568, rk3588]
+        CPU: [rk3328, rk3399]
         SET: [docker, non-docker]
     steps:
     - name: Checkout
@@ -217,12 +217,6 @@ jobs:
         rk3399)
           MODEL=R4S-Series
           ;;
-        rk3568)
-          MODEL=R5S-R5C-Series
-          ;;
-        rk3588)
-          MODEL=T6-R6S-R6C-Series
-          ;;
         *)
           echo "unknow cpu"
           exit 1
@@ -251,7 +245,6 @@ jobs:
         cd project
         ./build.sh uboot
         ./build.sh kernel
-        source ../scripts/wifi/add_rtl8852be.sh
 
     - name: Build sd image
       id: build_sd_image
