@@ -31,8 +31,8 @@ jobs:
     if: github.event.repository.owner.id == github.event.sender.id
     strategy:
       matrix:
-        VERSION: [21.02, 23.05]
-        SET: [docker, non-docker]
+        VERSION: [23.05]
+        SET: [docker]
 
     steps:
     - name: Checkout
@@ -73,6 +73,12 @@ jobs:
         repo sync -c scripts --no-clone-bundle
         repo sync -c scripts/sd-fuse  --no-clone-bundle
         repo sync -c toolchain  --no-clone-bundle
+
+        repo sync -c kernel --no-clone-bundle
+        repo sync -c scripts --no-clone-bundle
+        repo sync -c scripts/sd-fuse  --no-clone-bundle
+        (cd kernel && git checkout nanopi-r2-v5.15.y)
+        (cd scripts/sd-fuse && git checkout kernel-5.15.y)
 
     - name: Apply customizations
       run: |
@@ -141,9 +147,9 @@ jobs:
 
     strategy:
       matrix:
-        VERSION: [21.02, 23.05]
-        CPU: [rk3328, rk3399, rk3568, rk3588]
-        SET: [docker, non-docker]
+        VERSION: [23.05]
+        CPU: [rk3328]
+        SET: [docker]
     steps:
     - name: Checkout
       uses: actions/checkout@main
@@ -185,6 +191,8 @@ jobs:
         repo sync -c scripts --no-clone-bundle
         repo sync -c scripts/sd-fuse  --no-clone-bundle
         repo sync -c toolchain  --no-clone-bundle
+        (cd kernel && git checkout nanopi-r2-v5.15.y)
+        (cd scripts/sd-fuse && git checkout kernel-5.15.y)
 
     - name: Download friendlywrt rootfs (non-docker)
       if: matrix.SET == 'non-docker'
@@ -216,12 +224,6 @@ jobs:
           ;;
         rk3399)
           MODEL=R4S-Series
-          ;;
-        rk3568)
-          MODEL=R5S-R5C-Series
-          ;;
-        rk3588)
-          MODEL=T6-R6S-R6C-Series
           ;;
         *)
           echo "unknow cpu"
