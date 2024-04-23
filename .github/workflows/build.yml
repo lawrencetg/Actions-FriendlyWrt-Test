@@ -191,6 +191,11 @@ jobs:
         repo sync -c scripts --no-clone-bundle
         repo sync -c scripts/sd-fuse  --no-clone-bundle
         repo sync -c toolchain  --no-clone-bundle
+<<<<<<< HEAD
+=======
+        echo "pwd: $PWD"
+        ls -l
+>>>>>>> d8e888a (rk3288 kernel5.15)
         (cd kernel && git checkout nanopi-r2-v5.15.y)
         (cd scripts/sd-fuse && git checkout kernel-5.15.y)
 
