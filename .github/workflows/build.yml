@@ -31,8 +31,8 @@ jobs:
     if: github.event.repository.owner.id == github.event.sender.id
     strategy:
       matrix:
-        VERSION: [23.05]
-        SET: [docker]
+        VERSION: [21.02, 23.05]
+        SET: [docker, non-docker]
 
     steps:
     - name: Checkout
@@ -63,19 +63,16 @@ jobs:
       run: |
         mkdir project
         cd project
-        repo init -u https://github.com/friendlyarm/friendlywrt_manifests -b master-v${{ matrix.VERSION }} \
-                -m rk3328.xml --repo-url=https://github.com/friendlyarm/repo  --no-clone-bundle
+        repo init --depth=1 -u https://github.com/friendlyarm/friendlywrt_manifests -b master-v${{ matrix.VERSION }} \
+                -m rk3399.xml --repo-url=https://github.com/friendlyarm/repo  --no-clone-bundle
 
         repo sync -c friendlywrt --no-clone-bundle
         repo sync -c configs --no-clone-bundle
         repo sync -c device/common --no-clone-bundle
         repo sync -c device/friendlyelec --no-clone-bundle
         repo sync -c scripts --no-clone-bundle
+        repo sync -c scripts/sd-fuse  --no-clone-bundle
         repo sync -c toolchain  --no-clone-bundle
-
-        repo sync -c kernel --no-clone-bundle
-        git clone https://github.com/friendlyarm/kernel-rockchip -b nanopi-r2-v5.15.y --depth 1 kernel
-        cd scripts && git clone https://github.com/friendlyarm/sd-fuse_rk3328 -b kernel-5.15.y --depth 1 sd-fuse
 
     - name: Apply customizations
       run: |
@@ -144,9 +141,9 @@ jobs:
 
     strategy:
       matrix:
-        VERSION: [23.05]
+        VERSION: [21.02, 23.05]
         CPU: [rk3328]
-        SET: [docker]
+        SET: [docker, non-docker]
     steps:
     - name: Checkout
       uses: actions/checkout@main
@@ -176,22 +173,18 @@ jobs:
       run: |
         mkdir project
         cd project
-        repo init -u https://github.com/friendlyarm/friendlywrt_manifests -b master-v${{ matrix.VERSION }} \
+        repo init --depth=1 -u https://github.com/friendlyarm/friendlywrt_manifests -b master-v${{ matrix.VERSION }} \
                 -m ${{ matrix.CPU }}.xml --repo-url=https://github.com/friendlyarm/repo  --no-clone-bundle
 
-        repo sync -c kernel --no-clone-bundle
         repo sync -c u-boot --no-clone-bundle
         repo sync -c rkbin --no-clone-bundle
         repo sync -c configs --no-clone-bundle
         repo sync -c device/common --no-clone-bundle
         repo sync -c device/friendlyelec --no-clone-bundle
         repo sync -c scripts --no-clone-bundle
-        repo sync -c scripts/sd-fuse  --no-clone-bundle
         repo sync -c toolchain  --no-clone-bundle
-        echo "pwd: $PWD"
-        ls -l
-        (cd kernel && git checkout nanopi-r2-v5.15.y)
-        (cd scripts/sd-fuse && git checkout kernel-5.15.y)
+        git clone https://github.com/friendlyarm/kernel-rockchip -b nanopi-r2-v5.15.y --depth 1 kernel
+        cd scripts && git clone https://github.com/friendlyarm/sd-fuse_rk3328 -b kernel-5.15.y --depth 1 sd-fuse
 
     - name: Download friendlywrt rootfs (non-docker)
       if: matrix.SET == 'non-docker'
@@ -223,6 +216,12 @@ jobs:
           ;;
         rk3399)
           MODEL=R4S-Series
+          ;;
+        rk3568)
+          MODEL=R5S-R5C-Series
+          ;;
+        rk3588)
+          MODEL=T6-R6S-R6C-Series
           ;;
         *)
           echo "unknow cpu"
