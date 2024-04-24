@@ -257,6 +257,8 @@ jobs:
       run: |
         cd project
         ./build.sh sd-img
+        (cd out && ls -l *.img)
+        echo "img_filename=${{ steps.config.outputs.img_filename }}"
         mv out/${{ steps.config.outputs.img_filename }} ../artifact/
         cd ../artifact/
         gzip *.img
