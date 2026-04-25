@@ -31,7 +31,7 @@ jobs:
     if: github.event.repository.owner.id == github.event.sender.id
     strategy:
       matrix:
-        VERSION: ['23.05', '24.10']
+        VERSION: ['25.12']
         SET: [docker, non-docker]
 
     steps:
@@ -140,8 +140,8 @@ jobs:
 
     strategy:
       matrix:
-        VERSION: ['23.05', '24.10']
-        CPU: [rk3328, rk3528, rk3399, rk3566, rk3568, rk3576, rk3588]
+        VERSION: ['25.12']
+        CPU: [rk3328]
         SET: [docker, non-docker]
     steps:
     - name: Checkout
@@ -275,10 +275,28 @@ jobs:
         cd project
         ./build.sh sd-img
         mv out/${{ steps.config.outputs.img_filename }} ../artifact/
+
+        # package images-xyz.tgz
+        pushd scripts/sd-fuse/ 2>&1 > /dev/null
+        IMAGES_PKG=images-${{ matrix.MODEL }}${SUFFIX}.tgz
+        echo "##[set-output name=images_pkg_filename;]$IMAGES_PKG"
+        tar cvzf ${IMAGES_PKG} ${DIRNAME}
+        mv ${IMAGES_PKG} ../../../artifact/
+        popd 2>&1 > /dev/null
+
         cd ../artifact/
         gzip *.img
 
-    - name: Upload image to release
+    - name: Upload .tgz image to release
+      uses: svenstaro/upload-release-action@v2
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: ./artifact/${{ steps.build_sd_image.outputs.images_pkg_filename }}
+        asset_name: ${{ steps.build_sd_image.outputs.images_pkg_filename }}
+        tag: ${{ needs.prepare_release.outputs.release_tag }}
+        overwrite: true
+
+    - name: Upload .img.gz image to release
       uses: svenstaro/upload-release-action@v2
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}

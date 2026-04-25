@@ -1,9 +1,24 @@
 #!/bin/bash
 
+# Detect whether this is OpenWrt 25+ by probing feeds.conf.default for the
+# "video" feed line, which only ships in OpenWrt 25+.
+IS_OPENWRT_25=0
+if [ -f friendlywrt/feeds.conf.default ] \
+   && grep -qE '^[[:space:]]*src-git[[:space:]]+video[[:space:]]+https' friendlywrt/feeds.conf.default; then
+    IS_OPENWRT_25=1
+fi
+echo "add_packages.sh: IS_OPENWRT_25=${IS_OPENWRT_25}"
+
 # {{ Add luci-app-diskman
 (cd friendlywrt && {
     mkdir -p package/luci-app-diskman
-    wget https://raw.githubusercontent.com/lisaac/luci-app-diskman/master/applications/luci-app-diskman/Makefile.old -O package/luci-app-diskman/Makefile
+    if [ "${IS_OPENWRT_25}" = "1" ]; then
+        wget https://raw.githubusercontent.com/lisaac/luci-app-diskman/master/applications/luci-app-diskman/Makefile -O package/luci-app-diskman/Makefile
+    else
+        wget https://raw.githubusercontent.com/lisaac/luci-app-diskman/master/applications/luci-app-diskman/Makefile.old -O package/luci-app-diskman/Makefile
+    fi
+    mkdir -p package/parted
+    wget https://raw.githubusercontent.com/lisaac/luci-app-diskman/master/Parted.Makefile -O package/parted/Makefile
 })
 cat >> configs/rockchip/01-nanopi <<EOL
 CONFIG_PACKAGE_luci-app-diskman=y
