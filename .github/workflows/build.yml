@@ -1,3 +1,5 @@
+name: Build FriendlyWrt
+
 on:
   watch:
     types: started
@@ -10,7 +12,7 @@ jobs:
       id: release_tag
       run: |
         release_tag="FriendlyWrt-$(date +%Y-%m-%d)"
-        echo "##[set-output name=release_tag;]$release_tag"
+        echo "release_tag=$release_tag" >> $GITHUB_OUTPUT
 
     - name: Create empty release
       id: release
@@ -31,12 +33,12 @@ jobs:
     if: github.event.repository.owner.id == github.event.sender.id
     strategy:
       matrix:
-        VERSION: ['23.05', '24.10']
+        VERSION: ['25.12', '24.10']
         SET: [docker, non-docker]
 
     steps:
     - name: Checkout
-      uses: actions/checkout@main
+      uses: actions/checkout@v4
 
     - name: Initialization environment
       env:
@@ -49,13 +51,14 @@ jobs:
         sed -i -e 's/^(cat fa-toolchain/# (cat fa-toolchain/g' install.sh
         sed -i -e 's/^(tar xf fa-toolchain/# (tar xf fa-toolchain/g' install.sh
         sudo -E bash ./install.sh
-        sudo -E git config --global user.name 'GitHub Actions'
-        sudo -E git config --global user.email 'noreply@github.com'
+        git config --global user.name 'GitHub Actions'
+        git config --global user.email 'noreply@github.com'
+        git config --global color.ui false
         git clone https://github.com/friendlyarm/repo
         sudo -E cp repo/repo /usr/bin/
         mkdir -p ./artifact
-        sudo swapoff -a
-        sudo rm -rf /usr/share/dotnet /usr/local/lib/android/sdk /usr/local/share/boost /opt/ghc
+        sudo swapoff -a || true
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android/sdk /usr/local/share/boost /opt/ghc 2>/dev/null || true
         echo "cores: $(nproc)"
 
     - name: Download source
@@ -104,14 +107,35 @@ jobs:
       continue-on-error: true
       run: |
         cd project/friendlywrt
-        make -j$(nproc) || make -j1 V=s
-        echo $?
+        if ! make -j$(nproc); then
+          echo "::warning::parallel build failed, retrying with V=s -> verbose.log"
+          make -j1 V=s > ../../verbose.log 2>&1 || {
+            echo "==== last 500 lines of verbose.log ===="
+            tail -n 500 ../../verbose.log
+            exit 1
+          }
+        fi
 
     - name: Check the result and try again
       if: steps.compile.outcome == 'failure'
       run: |
         cd project/friendlywrt
-        make -j1 V=s
+        make -j1 V=s > ../../verbose-retry.log 2>&1 || {
+          echo "==== last 500 lines of verbose-retry.log ===="
+          tail -n 500 ../../verbose-retry.log
+          exit 1
+        }
+
+    - name: Upload build logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-logs-${{ matrix.VERSION }}-${{ matrix.SET }}
+        path: |
+          verbose.log
+          verbose-retry.log
+        if-no-files-found: ignore
+        retention-days: 7
 
     - name: Create rootfs package
       id: create_rootfs_package
@@ -120,9 +144,9 @@ jobs:
         source .current_config.mk
         [ "${{ matrix.SET }}" == "docker" ] && SUFFIX="-docker"
         rootfs_filename="rootfs-friendlywrt-${{ matrix.VERSION }}${SUFFIX}.tgz"
-        tar cvzf ../artifact/${rootfs_filename} ${FRIENDLYWRT_SRC}/${FRIENDLYWRT_ROOTFS} \
+        tar czf ../artifact/${rootfs_filename} ${FRIENDLYWRT_SRC}/${FRIENDLYWRT_ROOTFS} \
               ${FRIENDLYWRT_SRC}/${FRIENDLYWRT_PACKAGE_DIR}
-        echo "##[set-output name=rootfs_filename;]$rootfs_filename"
+        echo "rootfs_filename=$rootfs_filename" >> $GITHUB_OUTPUT
 
     - name: Upload rootfs package
       uses: svenstaro/upload-release-action@v2
@@ -140,12 +164,12 @@ jobs:
 
     strategy:
       matrix:
-        VERSION: ['23.05', '24.10']
+        VERSION: ['25.12', '24.10']
         CPU: [rk3328, rk3528, rk3399, rk3566, rk3568, rk3576, rk3588]
         SET: [docker, non-docker]
     steps:
     - name: Checkout
-      uses: actions/checkout@main
+      uses: actions/checkout@v4
 
     - name: Initialization environment
       env:
@@ -158,13 +182,14 @@ jobs:
         sed -i -e 's/^(cat fa-toolchain/# (cat fa-toolchain/g' install.sh
         sed -i -e 's/^(tar xf fa-toolchain/# (tar xf fa-toolchain/g' install.sh
         sudo -E bash ./install.sh
-        sudo -E git config --global user.name 'GitHub Actions'
-        sudo -E git config --global user.email 'noreply@github.com'
+        git config --global user.name 'GitHub Actions'
+        git config --global user.email 'noreply@github.com'
+        git config --global color.ui false
         git clone https://github.com/friendlyarm/repo
         sudo -E cp repo/repo /usr/bin/
         mkdir -p ./artifact
-        sudo swapoff -a
-        sudo rm -rf /usr/share/dotnet /usr/local/lib/android/sdk /usr/local/share/boost /opt/ghc
+        sudo swapoff -a || true
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android/sdk /usr/local/share/boost /opt/ghc 2>/dev/null || true
         echo "cores: $(nproc)"
 
     - name: Download source
@@ -236,22 +261,28 @@ jobs:
           ;;
         esac
         [ "${{ matrix.SET }}" == "docker" ] && SUFFIX="-docker"
-        FILENAME=${MODEL}-FriendlyWrt-${{ matrix.VERSION }}${SUFFIX}.img
+        IMGFN=${MODEL}-FriendlyWrt-${{ matrix.VERSION }}${SUFFIX}.img
+        TGZFN=images-${MODEL}-FriendlyWrt-${{ matrix.VERSION }}${SUFFIX}.tgz
         DIRNAME=friendlywrt$(echo ${{ matrix.VERSION }}|awk -F . '{print $1}')${SUFFIX}
+
         CONFIG=rockchip${SUFFIX}
         cat > .current_config.mk <<EOL
         . device/friendlyelec/${{ matrix.CPU }}/base.mk
         TARGET_IMAGE_DIRNAME=${DIRNAME}
         TARGET_FRIENDLYWRT_CONFIG=${CONFIG}
-        TARGET_SD_RAW_FILENAME=${FILENAME}
+        TARGET_SD_RAW_FILENAME=${IMGFN}
         EOL
-        echo "##[set-output name=img_filename;]$FILENAME"
+
+        echo "img_filename=$IMGFN" >> $GITHUB_OUTPUT
+        echo "tgz_filename=$TGZFN" >> $GITHUB_OUTPUT
+        echo "dirname=$DIRNAME" >> $GITHUB_OUTPUT
+        echo "suffix=$SUFFIX" >> $GITHUB_OUTPUT
 
     - name: Unpack friendlywrt rootfs
       run: |
         cd project
-        [ "${{ matrix.SET }}" == "docker" ] && SUFFIX="-docker"
-        tar xvzf "../rootfs-friendlywrt-${{ matrix.VERSION }}${SUFFIX}.tgz"
+        SUFFIX="${{ steps.config.outputs.suffix }}"
+        tar xzf "../rootfs-friendlywrt-${{ matrix.VERSION }}${SUFFIX}.tgz"
 
     - name: Compile uboot and kernel
       run: |
@@ -275,10 +306,31 @@ jobs:
         cd project
         ./build.sh sd-img
         mv out/${{ steps.config.outputs.img_filename }} ../artifact/
+
+        # package images-xyz.tgz
+        pushd scripts/sd-fuse/ > /dev/null
+        if [ ! -d "${{ steps.config.outputs.dirname }}" ]; then
+            echo "ERROR: image directory ${{ steps.config.outputs.dirname }} not found under scripts/sd-fuse/"
+            ls -la
+            exit 1
+        fi
+        tar czf ${{ steps.config.outputs.tgz_filename }} ${{ steps.config.outputs.dirname }}
+        mv ${{ steps.config.outputs.tgz_filename }} ../../../artifact/
+        popd > /dev/null
+
         cd ../artifact/
         gzip *.img
 
-    - name: Upload image to release
+    - name: Upload images-XYZ.tgz to release
+      uses: svenstaro/upload-release-action@v2
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: ./artifact/${{ steps.config.outputs.tgz_filename }}
+        asset_name: ${{ steps.config.outputs.tgz_filename }}
+        tag: ${{ needs.prepare_release.outputs.release_tag }}
+        overwrite: true
+
+    - name: Upload XYZ.img.gz to release
       uses: svenstaro/upload-release-action@v2
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
